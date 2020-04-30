@@ -311,7 +311,7 @@ properties:
               type: string
             operator:
               type: string
-              enum: ["Exists", "In", "NotIn"]
+              enum: ["DoesNotExist", "Exists", "In", "NotIn"]
             values:
               type: array
               items: {}
