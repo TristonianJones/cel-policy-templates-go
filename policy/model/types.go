@@ -152,7 +152,7 @@ func (rt *RuleTypes) convertToCustomType(dyn *DynValue, schemaType *schemaType,
 		if schemaType.isObject() {
 			obj := v.ConvertToObject(schemaType)
 			for name, f := range obj.fieldMap {
-				fieldType := schemaType.fields[name]
+				fieldType := schemaType.fields[string(name)]
 				f.Ref = rt.convertToCustomType(f.Ref, fieldType, observers...)
 			}
 			dyn.Value = obj

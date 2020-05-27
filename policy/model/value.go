@@ -212,25 +212,33 @@ type MultilineStringValue struct {
 
 func newStructValue() *structValue {
 	return &structValue{
-		Fields:   []*Field{},
-		fieldMap: map[string]*Field{},
+		Fields:     []*Field{},
+		fieldMap:   map[types.String]*Field{},
+		fieldNames: []types.String{},
 	}
 }
 
 type structValue struct {
-	Fields   []*Field
-	fieldMap map[string]*Field
+	Fields     []*Field
+	fieldMap   map[types.String]*Field
+	fieldNames []types.String
 }
 
 // AddField appends a MapField to the MapValue and indexes the field by name.
 func (sv *structValue) AddField(field *Field) {
 	sv.Fields = append(sv.Fields, field)
-	sv.fieldMap[field.Name] = field
+	sv.fieldMap[types.String(field.Name)] = field
+}
+
+func (sv *structValue) Finalize() {
+	for name := range sv.fieldMap {
+		sv.fieldNames = append(sv.fieldNames, name)
+	}
 }
 
 // GetField returns a MapField by name if one exists.
 func (sv *structValue) GetField(name string) (*Field, bool) {
-	field, found := sv.fieldMap[name]
+	field, found := sv.fieldMap[types.String(name)]
 	return field, found
 }
 
@@ -240,8 +248,7 @@ func (sv *structValue) IsSet(key ref.Val) ref.Val {
 	if !ok {
 		return types.MaybeNoSuchOverloadErr(key)
 	}
-	name := string(k)
-	_, found := sv.fieldMap[name]
+	_, found := sv.fieldMap[k]
 	return celBool(found)
 }
 
@@ -286,8 +293,7 @@ func (o *ObjectValue) Equal(other ref.Val) ref.Val {
 	}
 	o2 := other.(traits.Indexer)
 	for name, field := range o.fieldMap {
-		k := types.String(name)
-		ov := o2.Get(k)
+		ov := o2.Get(name)
 		v := field.Ref.ExprValue()
 		vEq := v.Equal(ov)
 		if vEq != types.True {
@@ -307,14 +313,13 @@ func (o *ObjectValue) Get(name ref.Val) ref.Val {
 	if !ok {
 		return types.MaybeNoSuchOverloadErr(n)
 	}
-	nameStr := string(n)
-	field, found := o.fieldMap[nameStr]
+	field, found := o.fieldMap[n]
 	if found {
 		return field.Ref.ExprValue()
 	}
-	fieldType, found := o.objectType.fields[nameStr]
+	fieldType, found := o.objectType.fields[string(n)]
 	if !found {
-		return types.NewErr("no such field: %s", nameStr)
+		return types.NewErr("no such field: %v", n)
 	}
 	if fieldType.isObject() {
 		return NewObjectValue(fieldType)
@@ -419,8 +424,7 @@ func (m *MapValue) Find(name ref.Val) (ref.Val, bool) {
 	if !ok {
 		return types.MaybeNoSuchOverloadErr(n), true
 	}
-	nameStr := string(n)
-	field, found := m.fieldMap[nameStr]
+	field, found := m.fieldMap[n]
 	if found {
 		return field.Ref.ExprValue(), true
 	}
@@ -440,15 +444,9 @@ func (m *MapValue) Get(key ref.Val) ref.Val {
 //
 // The Iterator is frequently used within comprehensions.
 func (m *MapValue) Iterator() traits.Iterator {
-	keys := make([]ref.Val, len(m.fieldMap))
-	i := 0
-	for k := range m.fieldMap {
-		keys[i] = types.String(k)
-		i++
-	}
 	return &baseMapIterator{
-		baseVal: &baseVal{},
-		keys:    keys,
+		baseVal: emptyBaseValue,
+		keys:    m.fieldNames,
 	}
 }
 
@@ -469,7 +467,7 @@ func (m *MapValue) Value() interface{} {
 
 type baseMapIterator struct {
 	*baseVal
-	keys []ref.Val
+	keys []types.String
 	idx  int
 }
 
@@ -677,8 +675,9 @@ func (lv *ListValue) Get(idx ref.Val) ref.Val {
 // Iterator produces a traits.Iterator suitable for use in CEL comprehension macros.
 func (lv *ListValue) Iterator() traits.Iterator {
 	return &baseListIterator{
-		getter: lv.Get,
-		sz:     len(lv.Entries),
+		baseVal: emptyBaseValue,
+		getter:  lv.Get,
+		sz:      len(lv.Entries),
 	}
 }
 
@@ -745,3 +744,5 @@ func celBool(pred bool) ref.Val {
 	}
 	return types.False
 }
+
+var emptyBaseValue *baseVal = &baseVal{}

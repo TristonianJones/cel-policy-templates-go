@@ -267,6 +267,9 @@ func (b *dynValueBuilder) finalize() {
 	if b.lb != nil {
 		b.lb.listVal.Finalize()
 	}
+	if b.mb != nil {
+		b.mb.mv.Finalize()
+	}
 }
 
 // helper methods for formatting builder-related error messages.
